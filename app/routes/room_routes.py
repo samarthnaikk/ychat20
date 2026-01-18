@@ -13,7 +13,7 @@ room_bp = Blueprint('rooms', __name__)
 logger = logging.getLogger(__name__)
 
 
-@room_bp.route('/', methods=['POST'])
+@room_bp.route('', methods=['POST'])
 @limiter.limit("100 per 15 minutes")
 @token_required
 def create_room(current_user):
@@ -80,7 +80,7 @@ def create_room(current_user):
         }), 500
 
 
-@room_bp.route('/', methods=['GET'])
+@room_bp.route('', methods=['GET'])
 @limiter.limit("100 per 15 minutes")
 @token_required
 def get_user_rooms(current_user):
