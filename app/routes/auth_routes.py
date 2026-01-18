@@ -254,6 +254,10 @@ def search_users(user):
             User.id != user.id  # Exclude current user
         ).limit(10).all()
         
+        logger.info(f"Search query '{query}' by user {user.id} ({user.username}) found {len(users)} users")
+        for found_user in users:
+            logger.info(f"  - Found user: {found_user.id} ({found_user.username})")
+        
         return jsonify({
             'success': True,
             'data': {

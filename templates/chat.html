@@ -212,6 +212,7 @@
             }
 
             try {
+                console.log('Searching for users:', searchTerm);
                 const response = await fetch(`${API_BASE}/api/auth/users/search?q=${encodeURIComponent(searchTerm)}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -219,21 +220,29 @@
                 });
 
                 const data = await response.json();
+                console.log('Search response:', data);
 
                 if (data.success) {
+                    console.log('Search successful, users found:', data.data.users);
+                    
                     if (data.data.users.length === 0) {
+                        console.log('No users in search results');
                         showError('No users found');
                         return;
                     }
 
+                    // Clear search input
+                    document.getElementById('userSearch').value = '';
+
                     // Display found users
-                    data.data.users.forEach(user => {
+                    data.data.users.forEach((user, index) => {
+                        console.log(`Processing user ${index + 1}:`, user);
                         displayUser(user);
                     });
 
-                    document.getElementById('userSearch').value = '';
                     showSuccess(`Found ${data.data.users.length} user(s)`);
                 } else {
+                    console.error('Search failed:', data);
                     showError(data.message || 'Search failed');
                 }
             } catch (error) {
@@ -246,21 +255,39 @@
         function displayUser(user) {
             const userList = document.getElementById('userList');
             
-            // Check if user already exists
-            if (document.getElementById(`user-${user.id}`)) {
+            // Check if user already exists by ID
+            const existingElement = document.getElementById(`user-${user.id}`);
+            if (existingElement) {
+                console.log(`User already in list: ${user.username} (ID: ${user.id})`);
+                
+                // Highlight the existing user briefly to show it was found
+                existingElement.style.background = '#667eea';
+                existingElement.style.color = 'white';
+                setTimeout(() => {
+                    if (!existingElement.classList.contains('active')) {
+                        existingElement.style.background = '';
+                        existingElement.style.color = '';
+                    }
+                }, 1000);
                 return;
             }
+
+            console.log(`Adding user to sidebar: ${user.username} (ID: ${user.id})`);
 
             const userElement = document.createElement('div');
             userElement.className = 'user-item';
             userElement.id = `user-${user.id}`;
             userElement.innerHTML = `
                 <div class="user-avatar">${user.username[0].toUpperCase()}</div>
-                <div class="user-name">${user.username}</div>
+                <div class="user-info">
+                    <div class="user-name">${user.username}</div>
+                    <div class="user-email">${user.email || ''}</div>
+                </div>
             `;
             userElement.onclick = () => selectUser(user);
 
             userList.appendChild(userElement);
+            console.log('User added to sidebar successfully');
         }
 
         // Select user to chat with
@@ -435,13 +462,6 @@
 
                 // Initialize socket connection
                 initializeSocket();
-
-                // Add some demo users for testing
-                setTimeout(() => {
-                    displayUser({ id: 1, username: 'Alice', email: 'alice@example.com' });
-                    displayUser({ id: 2, username: 'Bob', email: 'bob@example.com' });
-                    displayUser({ id: 3, username: 'Charlie', email: 'charlie@example.com' });
-                }, 2000);
 
             } catch (error) {
                 console.error('App initialization error:', error);
