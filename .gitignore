@@ -20,8 +20,6 @@ pip-log.txt
 pip-delete-this-directory.txt
 .pytest_cache/
 *.egg-info/
-dist/
-build/
 *.egg
 
 # Environment variables
@@ -36,7 +34,6 @@ build/
 *.swp
 *.swo
 *~
-.DS_Store
 
 # Logs
 logs/
