@@ -26,6 +26,7 @@ def authenticate_socket(token):
     """
     try:
         if not token:
+            logger.debug("No token provided for socket authentication")
             return None
         
         # Remove 'Bearer ' prefix if present
@@ -35,14 +36,20 @@ def authenticate_socket(token):
         decoded = decode_token(token)
         user_id = decoded.get('sub')
         
+        if not user_id:
+            logger.warning("Token decoded but no user_id found in sub claim")
+            return None
+        
         # Verify user exists
         user = User.query.get(user_id)
         if not user:
+            logger.warning(f"Token valid but user {user_id} not found in database")
             return None
         
+        logger.debug(f"Socket authentication successful for user {user_id}")
         return user_id
     except Exception as e:
-        logger.warning(f"Socket authentication failed: {type(e).__name__}")
+        logger.warning(f"Socket authentication failed: {type(e).__name__}: {str(e)}")
         return None
 
 
@@ -53,11 +60,22 @@ def handle_connect(auth):
         # Get token from auth parameter
         token = auth.get('token') if auth else None
         
+        if not token:
+            logger.warning("WebSocket connection attempted without token")
+            emit('error', {
+                'success': False,
+                'message': 'Authentication token required'
+            })
+            return False
+        
         user_id = authenticate_socket(token)
         
         if not user_id:
-            logger.warning("Unauthorized WebSocket connection attempt")
-            disconnect()
+            logger.warning("Unauthorized WebSocket connection attempt - invalid token")
+            emit('error', {
+                'success': False,
+                'message': 'Invalid or expired token'
+            })
             return False
         
         # Store connection
@@ -79,8 +97,11 @@ def handle_connect(auth):
         return True
         
     except Exception as e:
-        logger.error(f"Connection error: {type(e).__name__}")
-        disconnect()
+        logger.error(f"Connection error: {type(e).__name__}: {str(e)}")
+        emit('error', {
+            'success': False,
+            'message': 'Connection failed'
+        })
         return False
 
 

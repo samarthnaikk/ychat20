@@ -423,6 +423,16 @@ body {
     color: white;
 }
 
+.connection-status.connecting {
+    background: #f59e0b;
+    color: white;
+}
+
+.connection-status.error {
+    background: #dc2626;
+    color: white;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .sidebar {

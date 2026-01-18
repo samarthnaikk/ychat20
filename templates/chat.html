@@ -56,7 +56,7 @@
     <!-- Status indicator -->
     <div id="connectionStatus" class="connection-status offline">Connecting...</div>
 
-    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+    <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
     <script>
         const API_BASE = '';
         let socket = null;
@@ -67,46 +67,71 @@
         // Check authentication
         if (!token) {
             window.location.href = '/';
-            return;
-        }
-
-        // Parse user data
-        try {
-            currentUser = JSON.parse(localStorage.getItem('user'));
-            document.getElementById('currentUsername').textContent = currentUser.username;
-        } catch (error) {
-            console.error('Error parsing user data:', error);
-            logout();
-            return;
+        } else {
+            // Parse user data
+            try {
+                currentUser = JSON.parse(localStorage.getItem('user'));
+                document.getElementById('currentUsername').textContent = currentUser.username;
+            } catch (error) {
+                console.error('Error parsing user data:', error);
+                logout();
+            }
         }
 
         // Initialize Socket.IO connection
         function initializeSocket() {
             console.log('Initializing socket connection...');
+            updateConnectionStatus('connecting');
+            
             socket = io(window.location.origin, {
                 auth: {
                     token: token
                 },
-                transports: ['websocket', 'polling']
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                reconnectionAttempts: 5
             });
 
             socket.on('connect', () => {
-                console.log('Connected to server');
-                updateConnectionStatus('online');
+                console.log('Connected to server - waiting for authentication...');
             });
 
             socket.on('connected', (data) => {
-                console.log('Socket authenticated:', data);
+                console.log('Socket authenticated successfully:', data);
+                updateConnectionStatus('online');
+                showSuccess('Connected to chat server');
             });
 
-            socket.on('disconnect', () => {
-                console.log('Disconnected from server');
+            socket.on('disconnect', (reason) => {
+                console.log('Disconnected from server:', reason);
                 updateConnectionStatus('offline');
+                if (reason === 'io server disconnect') {
+                    // Server disconnected us, try to reconnect
+                    socket.connect();
+                }
             });
 
             socket.on('connect_error', (error) => {
                 console.error('Connection error:', error);
-                updateConnectionStatus('offline');
+                updateConnectionStatus('error');
+                showError('Failed to connect to server. Please try refreshing the page.');
+            });
+
+            socket.on('error', (data) => {
+                console.error('Socket error:', data);
+                if (data.message && data.message.includes('token')) {
+                    // Authentication error - token is invalid
+                    showError('Authentication failed: ' + data.message);
+                    updateConnectionStatus('error');
+                    setTimeout(() => {
+                        showError('Your session has expired. Redirecting to login...');
+                        setTimeout(logout, 2000);
+                    }, 1000);
+                } else {
+                    showError(data.message || 'An error occurred');
+                }
             });
 
             socket.on('receive_message', (data) => {
@@ -123,9 +148,21 @@
                 }
             });
 
-            socket.on('error', (data) => {
-                console.error('Socket error:', data);
-                showError(data.message);
+            // Handle reconnection attempts
+            socket.io.on('reconnect_attempt', () => {
+                console.log('Attempting to reconnect...');
+                updateConnectionStatus('connecting');
+            });
+
+            socket.io.on('reconnect', (attemptNumber) => {
+                console.log('Reconnected after', attemptNumber, 'attempts');
+                updateConnectionStatus('online');
+            });
+
+            socket.io.on('reconnect_failed', () => {
+                console.error('Failed to reconnect');
+                updateConnectionStatus('error');
+                showError('Failed to reconnect. Please refresh the page.');
             });
         }
 
@@ -133,7 +170,15 @@
         function updateConnectionStatus(status) {
             const statusEl = document.getElementById('connectionStatus');
             statusEl.className = `connection-status ${status}`;
-            statusEl.textContent = status === 'online' ? 'Connected' : 'Disconnected';
+            
+            const statusText = {
+                'online': 'Connected',
+                'offline': 'Disconnected',
+                'connecting': 'Connecting...',
+                'error': 'Connection Error'
+            };
+            
+            statusEl.textContent = statusText[status] || status;
         }
 
         // Logout function
