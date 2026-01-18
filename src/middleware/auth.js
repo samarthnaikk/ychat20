@@ -10,7 +10,10 @@ const protect = async (req, res, next) => {
 
     // Check if token is in Authorization header
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
+      const parts = req.headers.authorization.split(' ');
+      if (parts.length === 2) {
+        token = parts[1];
+      }
     }
 
     // Check if token exists

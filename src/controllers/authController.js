@@ -84,7 +84,9 @@ const login = async (req, res) => {
       });
     }
 
-    // Find user by email (include password for comparison)
+    // Find user by email
+    // Note: Password is excluded by default in User model's toJSON method,
+    // so we need to explicitly include it here for authentication comparison
     const user = await User.findOne({ email }).select('+password');
 
     if (!user) {
