@@ -3,7 +3,7 @@ const router = express.Router();
 const { register, login, getMe } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
 const { registerValidation, loginValidation, validate } = require('../middleware/validation');
-const { authLimiter } = require('../middleware/rateLimiter');
+const { authLimiter, generalLimiter } = require('../middleware/rateLimiter');
 
 /**
  * @route   POST /api/auth/register
@@ -24,6 +24,6 @@ router.post('/login', authLimiter, loginValidation, validate, login);
  * @desc    Get current logged in user
  * @access  Private
  */
-router.get('/me', protect, getMe);
+router.get('/me', generalLimiter, protect, getMe);
 
 module.exports = router;
