@@ -61,16 +61,32 @@ def create_app(config_name='default'):
                 'register': 'POST /api/auth/register',
                 'login': 'POST /api/auth/login',
                 'me': 'GET /api/auth/me (Protected)',
-                'chatHistory': 'GET /api/messages/history/:userId (Protected)'
+                'updateProfile': 'PUT /api/auth/profile (Protected)',
+                'chatHistory': 'GET /api/messages/history/:userId (Protected)',
+                'editMessage': 'PUT /api/messages/:messageId (Protected)',
+                'deleteMessage': 'DELETE /api/messages/:messageId (Protected)',
+                'createRoom': 'POST /api/rooms (Protected)',
+                'getRooms': 'GET /api/rooms (Protected)',
+                'getRoom': 'GET /api/rooms/:roomId (Protected)',
+                'addRoomMember': 'POST /api/rooms/:roomId/members (Protected)',
+                'removeRoomMember': 'DELETE /api/rooms/:roomId/members/:userId (Protected)',
+                'getRoomMessages': 'GET /api/rooms/:roomId/messages (Protected)'
             },
             'websocket': {
                 'connect': 'WebSocket connection with JWT auth',
                 'events': {
                     'send_message': 'Send a message to another user',
                     'receive_message': 'Receive messages from other users',
+                    'send_room_message': 'Send a message to a room',
+                    'receive_room_message': 'Receive room messages',
+                    'edit_message': 'Edit a message',
+                    'message_edited': 'Message edit notification',
+                    'delete_message': 'Delete a message',
+                    'message_deleted': 'Message delete notification',
                     'connected': 'Connection acknowledgment',
                     'message_sent': 'Message delivery confirmation'
                 }
+            }
             }
         }
     
