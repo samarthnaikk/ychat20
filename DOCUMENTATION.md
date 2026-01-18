@@ -823,3 +823,28 @@ console.log(data.data.messages);
 - Database uses SQLite for development; PostgreSQL is recommended for production
 - WebSocket connections automatically handle reconnection on disconnect
 - Messages are ordered by timestamp in ascending order (oldest first)
+
+### Production Deployment Considerations
+
+**Scalability:**
+- The current implementation uses an in-memory dictionary for active WebSocket connections
+- For production deployments with multiple server instances, implement a shared storage solution like Redis for connection management
+- Consider using a message queue (e.g., RabbitMQ, Redis Pub/Sub) for inter-server communication
+
+**Storage Backend:**
+- Configure a persistent storage backend for rate limiting (e.g., Redis, Memcached)
+- The in-memory storage is not recommended for production use
+
+**Server Configuration:**
+- Use a production WSGI server (e.g., Gunicorn with eventlet/gevent workers) instead of Flask's development server
+- Configure proper logging levels and log aggregation
+- Set up monitoring and alerting for WebSocket connections and message delivery
+
+**Example Production Configuration:**
+```bash
+# Install production server
+pip install gunicorn eventlet
+
+# Run with Gunicorn
+gunicorn --worker-class eventlet -w 1 --bind 0.0.0.0:3000 app:app
+```
