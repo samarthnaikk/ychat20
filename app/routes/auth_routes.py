@@ -12,7 +12,7 @@ auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/register', methods=['POST'])
-@limiter.limit("5 per 15 minutes")
+@limiter.limit("1000 per 15 minutes")
 def register():
     """
     Register a new user
@@ -82,7 +82,7 @@ def register():
 
 
 @auth_bp.route('/login', methods=['POST'])
-@limiter.limit("5 per 15 minutes")
+@limiter.limit("1000 per 15 minutes")
 def login():
     """
     Login user
