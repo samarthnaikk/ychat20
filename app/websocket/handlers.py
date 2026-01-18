@@ -1,6 +1,7 @@
 """
 WebSocket event handlers for real-time messaging
 """
+from flask import request
 from flask_socketio import emit, disconnect
 from flask_jwt_extended import decode_token
 from app import db, socketio
@@ -53,10 +54,9 @@ def handle_connect(auth):
             return False
         
         # Store connection
-        from flask_socketio import request as ws_request
-        active_connections[user_id] = ws_request.sid
+        active_connections[user_id] = request.sid
         
-        print(f"User {user_id} connected with socket {ws_request.sid}")
+        print(f"User {user_id} connected with socket {request.sid}")
         
         emit('connected', {
             'success': True,
@@ -76,12 +76,10 @@ def handle_connect(auth):
 def handle_disconnect():
     """Handle WebSocket disconnection"""
     try:
-        from flask_socketio import request as ws_request
-        
         # Remove connection
         user_id = None
         for uid, sid in list(active_connections.items()):
-            if sid == ws_request.sid:
+            if sid == request.sid:
                 user_id = uid
                 del active_connections[uid]
                 break
@@ -104,12 +102,10 @@ def handle_send_message(data):
     }
     """
     try:
-        from flask_socketio import request as ws_request
-        
         # Find sender from active connections
         sender_id = None
         for uid, sid in active_connections.items():
-            if sid == ws_request.sid:
+            if sid == request.sid:
                 sender_id = uid
                 break
         
