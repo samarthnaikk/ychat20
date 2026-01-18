@@ -307,6 +307,153 @@ test_update_profile_duplicate_username() {
     fi
 }
 
+# Test 12: Create Room
+test_create_room() {
+    print_test "Create Room"
+    
+    # Create a user
+    local user=$(random_string)
+    local resp=$(curl -s -X POST "$BASE_URL/api/auth/register" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$user\",\"email\":\"${user}@example.com\",\"password\":\"TestPass123\"}")
+    
+    local token=$(echo "$resp" | jq -r '.data.token')
+    
+    # Create room
+    local response=$(curl -s -X POST "$BASE_URL/api/rooms" \
+        -H "Authorization: Bearer $token" \
+        -H "Content-Type: application/json" \
+        -d '{"name":"Test Room","description":"A test room"}')
+    
+    if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+        print_pass "Room creation successful"
+        export ROOM_TOKEN="$token"
+    else
+        print_fail "Room creation failed: $response"
+    fi
+}
+
+# Test 13: Get User Rooms
+test_get_user_rooms() {
+    print_test "Get User Rooms"
+    
+    if [ -z "$ROOM_TOKEN" ]; then
+        print_fail "No room token available (depends on create room test)"
+        return
+    fi
+    
+    local response=$(curl -s -X GET "$BASE_URL/api/rooms" \
+        -H "Authorization: Bearer $ROOM_TOKEN")
+    
+    if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+        print_pass "Get user rooms successful"
+    else
+        print_fail "Get user rooms failed: $response"
+    fi
+}
+
+# Test 14: Add Room Member
+test_add_room_member() {
+    print_test "Add Room Member"
+    
+    # Create two users
+    local user1=$(random_string)
+    local user2=$(random_string)
+    
+    local resp1=$(curl -s -X POST "$BASE_URL/api/auth/register" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$user1\",\"email\":\"${user1}@example.com\",\"password\":\"TestPass123\"}")
+    
+    local resp2=$(curl -s -X POST "$BASE_URL/api/auth/register" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$user2\",\"email\":\"${user2}@example.com\",\"password\":\"TestPass123\"}")
+    
+    local token1=$(echo "$resp1" | jq -r '.data.token')
+    local user2_id=$(echo "$resp2" | jq -r '.data.user.id')
+    
+    # Create room
+    local room_resp=$(curl -s -X POST "$BASE_URL/api/rooms" \
+        -H "Authorization: Bearer $token1" \
+        -H "Content-Type: application/json" \
+        -d '{"name":"Test Room"}')
+    
+    local room_id=$(echo "$room_resp" | jq -r '.data.room.id')
+    
+    # Add member
+    local response=$(curl -s -X POST "$BASE_URL/api/rooms/$room_id/members" \
+        -H "Authorization: Bearer $token1" \
+        -H "Content-Type: application/json" \
+        -d "{\"userId\":$user2_id}")
+    
+    if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+        print_pass "Add room member successful"
+    else
+        print_fail "Add room member failed: $response"
+    fi
+}
+
+# Test 15: Edit Message
+test_edit_message() {
+    print_test "Edit Message via REST API"
+    
+    # This test creates a user, sends a message via WebSocket would be complex
+    # For now, we'll test the authorization aspect - trying to edit without proper auth
+    local response=$(curl -s -X PUT "$BASE_URL/api/messages/999" \
+        -H "Content-Type: application/json" \
+        -d '{"content":"Updated content"}')
+    
+    if echo "$response" | jq -e '.success == false' > /dev/null 2>&1; then
+        print_pass "Unauthorized message edit correctly rejected"
+    else
+        print_fail "Unauthorized message edit should be rejected"
+    fi
+}
+
+# Test 16: Delete Message
+test_delete_message() {
+    print_test "Delete Message via REST API"
+    
+    # Test unauthorized deletion
+    local response=$(curl -s -X DELETE "$BASE_URL/api/messages/999")
+    
+    if echo "$response" | jq -e '.success == false' > /dev/null 2>&1; then
+        print_pass "Unauthorized message delete correctly rejected"
+    else
+        print_fail "Unauthorized message delete should be rejected"
+    fi
+}
+
+# Test 17: Get Room Messages
+test_get_room_messages() {
+    print_test "Get Room Messages"
+    
+    # Create a user and room
+    local user=$(random_string)
+    local resp=$(curl -s -X POST "$BASE_URL/api/auth/register" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$user\",\"email\":\"${user}@example.com\",\"password\":\"TestPass123\"}")
+    
+    local token=$(echo "$resp" | jq -r '.data.token')
+    
+    # Create room
+    local room_resp=$(curl -s -X POST "$BASE_URL/api/rooms" \
+        -H "Authorization: Bearer $token" \
+        -H "Content-Type: application/json" \
+        -d '{"name":"Message Test Room"}')
+    
+    local room_id=$(echo "$room_resp" | jq -r '.data.room.id')
+    
+    # Get room messages
+    local response=$(curl -s -X GET "$BASE_URL/api/rooms/$room_id/messages" \
+        -H "Authorization: Bearer $token")
+    
+    if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+        print_pass "Get room messages successful"
+    else
+        print_fail "Get room messages failed: $response"
+    fi
+}
+
 # Print summary
 print_summary() {
     echo ""
@@ -354,6 +501,12 @@ main() {
     test_update_profile_success
     test_update_profile_unauthorized
     test_update_profile_duplicate_username
+    test_create_room
+    test_get_user_rooms
+    test_add_room_member
+    test_edit_message
+    test_delete_message
+    test_get_room_messages
     
     # Print summary
     print_summary

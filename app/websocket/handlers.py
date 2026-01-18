@@ -2,12 +2,14 @@
 WebSocket event handlers for real-time messaging
 """
 import logging
+from datetime import datetime
 from flask import request
-from flask_socketio import emit, disconnect
+from flask_socketio import emit, disconnect, join_room, leave_room
 from flask_jwt_extended import decode_token
 from app import db, socketio
 from app.models.message import Message
 from app.models.user import User
+from app.models.room import Room, RoomMember
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -60,6 +62,11 @@ def handle_connect(auth):
         
         # Store connection
         active_connections[user_id] = request.sid
+        
+        # Join user to their rooms
+        memberships = RoomMember.query.filter_by(user_id=user_id).all()
+        for membership in memberships:
+            join_room(f"room_{membership.room_id}")
         
         logger.info(f"User {user_id} connected with socket {request.sid}")
         
@@ -190,6 +197,289 @@ def handle_send_message(data):
         emit('error', {
             'success': False,
             'message': 'Failed to send message'
+        })
+
+
+@socketio.on('send_room_message')
+def handle_send_room_message(data):
+    """
+    Handle incoming room message from client
+    Expected data:
+    {
+        "roomId": int,
+        "content": str
+    }
+    """
+    try:
+        # Find sender from active connections
+        sender_id = None
+        for uid, sid in active_connections.items():
+            if sid == request.sid:
+                sender_id = uid
+                break
+        
+        if not sender_id:
+            emit('error', {
+                'success': False,
+                'message': 'Unauthorized'
+            })
+            return
+        
+        # Validate input
+        room_id = data.get('roomId')
+        content = data.get('content')
+        
+        if not room_id or not content:
+            emit('error', {
+                'success': False,
+                'message': 'Room ID and content are required'
+            })
+            return
+        
+        if not isinstance(content, str) or len(content.strip()) == 0:
+            emit('error', {
+                'success': False,
+                'message': 'Message content cannot be empty'
+            })
+            return
+        
+        if len(content) > 5000:
+            emit('error', {
+                'success': False,
+                'message': 'Message content too long (max 5000 characters)'
+            })
+            return
+        
+        # Check if room exists
+        room = Room.query.get(room_id)
+        if not room:
+            emit('error', {
+                'success': False,
+                'message': 'Room not found'
+            })
+            return
+        
+        # Check if sender is a member
+        membership = RoomMember.query.filter_by(
+            room_id=room_id,
+            user_id=sender_id
+        ).first()
+        
+        if not membership:
+            emit('error', {
+                'success': False,
+                'message': 'Not authorized to send messages to this room'
+            })
+            return
+        
+        # Create and save message
+        message = Message(
+            sender_id=sender_id,
+            room_id=room_id,
+            content=content.strip()
+        )
+        
+        db.session.add(message)
+        db.session.commit()
+        
+        message_dict = message.to_dict()
+        
+        # Send acknowledgment to sender
+        emit('message_sent', {
+            'success': True,
+            'message': message_dict
+        })
+        
+        # Broadcast to all room members
+        emit('receive_room_message', {
+            'success': True,
+            'message': message_dict
+        }, room=f"room_{room_id}", skip_sid=request.sid)
+        
+        logger.info(f"Room message from user {sender_id} to room {room_id}")
+        
+    except Exception as e:
+        logger.error(f"Error handling room message: {type(e).__name__}")
+        db.session.rollback()
+        emit('error', {
+            'success': False,
+            'message': 'Failed to send room message'
+        })
+
+
+@socketio.on('edit_message')
+def handle_edit_message(data):
+    """
+    Handle message edit request
+    Expected data:
+    {
+        "messageId": int,
+        "content": str
+    }
+    """
+    try:
+        # Find sender from active connections
+        sender_id = None
+        for uid, sid in active_connections.items():
+            if sid == request.sid:
+                sender_id = uid
+                break
+        
+        if not sender_id:
+            emit('error', {
+                'success': False,
+                'message': 'Unauthorized'
+            })
+            return
+        
+        message_id = data.get('messageId')
+        content = data.get('content')
+        
+        if not message_id or not content:
+            emit('error', {
+                'success': False,
+                'message': 'Message ID and content are required'
+            })
+            return
+        
+        if len(content.strip()) == 0 or len(content) > 5000:
+            emit('error', {
+                'success': False,
+                'message': 'Invalid content length'
+            })
+            return
+        
+        # Find message
+        message = Message.query.get(message_id)
+        if not message or message.sender_id != sender_id:
+            emit('error', {
+                'success': False,
+                'message': 'Message not found or not authorized'
+            })
+            return
+        
+        if message.deleted_at:
+            emit('error', {
+                'success': False,
+                'message': 'Cannot edit deleted message'
+            })
+            return
+        
+        # Update message
+        message.content = content.strip()
+        message.edited_at = datetime.utcnow()
+        db.session.commit()
+        
+        message_dict = message.to_dict()
+        
+        # Notify sender
+        emit('message_edited', {
+            'success': True,
+            'message': message_dict
+        })
+        
+        # Notify receiver or room
+        if message.room_id:
+            emit('message_edited', {
+                'success': True,
+                'message': message_dict
+            }, room=f"room_{message.room_id}", skip_sid=request.sid)
+        elif message.receiver_id and message.receiver_id in active_connections:
+            receiver_sid = active_connections[message.receiver_id]
+            emit('message_edited', {
+                'success': True,
+                'message': message_dict
+            }, room=receiver_sid)
+        
+    except Exception as e:
+        logger.error(f"Error editing message: {type(e).__name__}")
+        db.session.rollback()
+        emit('error', {
+            'success': False,
+            'message': 'Failed to edit message'
+        })
+
+
+@socketio.on('delete_message')
+def handle_delete_message(data):
+    """
+    Handle message delete request
+    Expected data:
+    {
+        "messageId": int
+    }
+    """
+    try:
+        # Find sender from active connections
+        sender_id = None
+        for uid, sid in active_connections.items():
+            if sid == request.sid:
+                sender_id = uid
+                break
+        
+        if not sender_id:
+            emit('error', {
+                'success': False,
+                'message': 'Unauthorized'
+            })
+            return
+        
+        message_id = data.get('messageId')
+        
+        if not message_id:
+            emit('error', {
+                'success': False,
+                'message': 'Message ID is required'
+            })
+            return
+        
+        # Find message
+        message = Message.query.get(message_id)
+        if not message or message.sender_id != sender_id:
+            emit('error', {
+                'success': False,
+                'message': 'Message not found or not authorized'
+            })
+            return
+        
+        if message.deleted_at:
+            emit('error', {
+                'success': False,
+                'message': 'Message already deleted'
+            })
+            return
+        
+        # Soft delete
+        message.deleted_at = datetime.utcnow()
+        db.session.commit()
+        
+        message_dict = message.to_dict()
+        
+        # Notify sender
+        emit('message_deleted', {
+            'success': True,
+            'message': message_dict
+        })
+        
+        # Notify receiver or room
+        if message.room_id:
+            emit('message_deleted', {
+                'success': True,
+                'message': message_dict
+            }, room=f"room_{message.room_id}", skip_sid=request.sid)
+        elif message.receiver_id and message.receiver_id in active_connections:
+            receiver_sid = active_connections[message.receiver_id]
+            emit('message_deleted', {
+                'success': True,
+                'message': message_dict
+            }, room=receiver_sid)
+        
+    except Exception as e:
+        logger.error(f"Error deleting message: {type(e).__name__}")
+        db.session.rollback()
+        emit('error', {
+            'success': False,
+            'message': 'Failed to delete message'
         })
 
 

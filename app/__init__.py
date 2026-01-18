@@ -43,8 +43,10 @@ def create_app(config_name='default'):
     # Register blueprints
     from app.routes.auth_routes import auth_bp
     from app.routes.message_routes import message_bp
+    from app.routes.room_routes import room_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(message_bp, url_prefix='/api/messages')
+    app.register_blueprint(room_bp, url_prefix='/api/rooms')
     
     # Register WebSocket handlers
     from app.websocket import handlers
