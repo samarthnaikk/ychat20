@@ -87,7 +87,6 @@ def create_app(config_name='default'):
                     'message_sent': 'Message delivery confirmation'
                 }
             }
-            }
         }
     
     # 404 handler
