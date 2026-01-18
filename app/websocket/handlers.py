@@ -1,6 +1,7 @@
 """
 WebSocket event handlers for real-time messaging
 """
+import logging
 from flask import request
 from flask_socketio import emit, disconnect
 from flask_jwt_extended import decode_token
@@ -8,7 +9,11 @@ from app import db, socketio
 from app.models.message import Message
 from app.models.user import User
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 # Store active connections: {user_id: socket_id}
+# Note: For production with multiple server instances, use Redis or similar
 active_connections = {}
 
 
@@ -35,7 +40,7 @@ def authenticate_socket(token):
         
         return user_id
     except Exception as e:
-        print(f"Socket authentication error: {e}")
+        logger.warning(f"Socket authentication failed: {type(e).__name__}")
         return None
 
 
@@ -49,14 +54,14 @@ def handle_connect(auth):
         user_id = authenticate_socket(token)
         
         if not user_id:
-            print("Unauthorized WebSocket connection attempt")
+            logger.warning("Unauthorized WebSocket connection attempt")
             disconnect()
             return False
         
         # Store connection
         active_connections[user_id] = request.sid
         
-        print(f"User {user_id} connected with socket {request.sid}")
+        logger.info(f"User {user_id} connected with socket {request.sid}")
         
         emit('connected', {
             'success': True,
@@ -67,7 +72,7 @@ def handle_connect(auth):
         return True
         
     except Exception as e:
-        print(f"Connection error: {e}")
+        logger.error(f"Connection error: {type(e).__name__}")
         disconnect()
         return False
 
@@ -85,10 +90,10 @@ def handle_disconnect():
                 break
         
         if user_id:
-            print(f"User {user_id} disconnected")
+            logger.info(f"User {user_id} disconnected")
         
     except Exception as e:
-        print(f"Disconnection error: {e}")
+        logger.error(f"Disconnection error: {type(e).__name__}")
 
 
 @socketio.on('send_message')
@@ -175,12 +180,12 @@ def handle_send_message(data):
                 'success': True,
                 'message': message_dict
             }, room=receiver_sid)
-            print(f"Message delivered to user {receiver_id}")
+            logger.info(f"Message delivered from user {sender_id} to user {receiver_id}")
         else:
-            print(f"User {receiver_id} is offline, message saved")
+            logger.info(f"User {receiver_id} is offline, message saved")
         
     except Exception as e:
-        print(f"Error handling message: {e}")
+        logger.error(f"Error handling message: {type(e).__name__}")
         db.session.rollback()
         emit('error', {
             'success': False,
@@ -191,7 +196,7 @@ def handle_send_message(data):
 @socketio.on_error_default
 def default_error_handler(e):
     """Handle WebSocket errors"""
-    print(f"WebSocket error: {e}")
+    logger.error(f"WebSocket error: {type(e).__name__}")
     emit('error', {
         'success': False,
         'message': 'An error occurred'

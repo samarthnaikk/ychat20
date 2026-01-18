@@ -6,8 +6,6 @@ import sys
 import requests
 import socketio
 import time
-import json
-from threading import Thread
 
 BASE_URL = 'http://localhost:3000'
 

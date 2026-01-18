@@ -1,6 +1,7 @@
 """
 Message routes for chat history
 """
+import logging
 from flask import Blueprint, request, jsonify
 from app import db, limiter
 from app.models.message import Message
@@ -8,6 +9,7 @@ from app.models.user import User
 from app.middleware.auth import token_required
 
 message_bp = Blueprint('messages', __name__)
+logger = logging.getLogger(__name__)
 
 
 @message_bp.route('/history/<int:user_id>', methods=['GET'])
@@ -73,6 +75,7 @@ def get_chat_history(current_user, user_id):
         }), 200
         
     except Exception as e:
+        logger.error(f"Error fetching chat history: {type(e).__name__} - {str(e)}")
         return jsonify({
             'success': False,
             'message': 'Server error while fetching messages'
