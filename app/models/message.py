@@ -1,0 +1,34 @@
+"""
+Message model for chat persistence
+"""
+from datetime import datetime
+from app import db
+
+
+class Message(db.Model):
+    """Message model for storing chat messages"""
+    
+    __tablename__ = 'messages'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Relationships
+    sender = db.relationship('User', foreign_keys=[sender_id], backref='sent_messages')
+    receiver = db.relationship('User', foreign_keys=[receiver_id], backref='received_messages')
+    
+    def __repr__(self):
+        return f'<Message from {self.sender_id} to {self.receiver_id}>'
+    
+    def to_dict(self):
+        """Convert message to dictionary"""
+        return {
+            'id': self.id,
+            'senderId': self.sender_id,
+            'receiverId': self.receiver_id,
+            'content': self.content,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None
+        }

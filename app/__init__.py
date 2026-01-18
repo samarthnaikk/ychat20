@@ -8,12 +8,14 @@ from flask_jwt_extended import JWTManager
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from flask_socketio import SocketIO
 from app.config.settings import config
 
 # Initialize extensions
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 jwt = JWTManager()
+socketio = SocketIO()
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["100 per 15 minutes"]
@@ -36,10 +38,16 @@ def create_app(config_name='default'):
     jwt.init_app(app)
     CORS(app, origins=app.config['CORS_ORIGINS'])
     limiter.init_app(app)
+    socketio.init_app(app, cors_allowed_origins=app.config['CORS_ORIGINS'])
     
     # Register blueprints
     from app.routes.auth_routes import auth_bp
+    from app.routes.message_routes import message_bp
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(message_bp, url_prefix='/api/messages')
+    
+    # Register WebSocket handlers
+    from app.websocket import handlers
     
     # Root route
     @app.route('/')
@@ -50,7 +58,17 @@ def create_app(config_name='default'):
             'endpoints': {
                 'register': 'POST /api/auth/register',
                 'login': 'POST /api/auth/login',
-                'me': 'GET /api/auth/me (Protected)'
+                'me': 'GET /api/auth/me (Protected)',
+                'chatHistory': 'GET /api/messages/history/:userId (Protected)'
+            },
+            'websocket': {
+                'connect': 'WebSocket connection with JWT auth',
+                'events': {
+                    'send_message': 'Send a message to another user',
+                    'receive_message': 'Receive messages from other users',
+                    'connected': 'Connection acknowledgment',
+                    'message_sent': 'Message delivery confirmation'
+                }
             }
         }
     
