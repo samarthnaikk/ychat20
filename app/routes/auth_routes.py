@@ -219,3 +219,47 @@ def update_profile(user):
             'success': False,
             'message': 'Server error during profile update'
         }), 500
+
+
+@auth_bp.route('/users/search', methods=['GET'])
+@limiter.limit("100 per 15 minutes")
+@token_required
+def search_users(user):
+    """
+    Search for users by username
+    GET /api/auth/users/search?q=username
+    """
+    try:
+        query = request.args.get('q', '').strip()
+        
+        if not query:
+            return jsonify({
+                'success': False,
+                'message': 'Search query is required'
+            }), 400
+        
+        if len(query) < 2:
+            return jsonify({
+                'success': False,
+                'message': 'Search query must be at least 2 characters'
+            }), 400
+        
+        # Search users by username (case-insensitive)
+        users = User.query.filter(
+            User.username.ilike(f'%{query}%'),
+            User.id != user.id  # Exclude current user
+        ).limit(10).all()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'users': [u.to_dict() for u in users],
+                'query': query
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': 'Server error during user search'
+        }), 500

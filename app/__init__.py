@@ -1,7 +1,7 @@
 """
 Initialize Flask application and extensions
 """
-from flask import Flask
+from flask import Flask, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager
@@ -24,7 +24,11 @@ limiter = Limiter(
 
 def create_app(config_name='default'):
     """Application factory pattern"""
-    app = Flask(__name__)
+    import os
+    # Get the parent directory of the app package for templates and static files
+    template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates'))
+    static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static'))
+    app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
     
     # Load configuration
     app.config.from_object(config[config_name])
@@ -51,9 +55,19 @@ def create_app(config_name='default'):
     # Register WebSocket handlers
     from app.websocket import handlers
     
-    # Root route
+    # Root route - redirect to login page
     @app.route('/')
     def index():
+        return render_template('login.html')
+    
+    # Chat page route
+    @app.route('/chat')
+    def chat():
+        return render_template('chat.html')
+    
+    # API info route
+    @app.route('/api')
+    def api_info():
         return {
             'message': 'YChat20 API',
             'version': '1.0.0',
