@@ -1,6 +1,7 @@
 """
 Authentication routes
 """
+import logging
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token
 from app import db, limiter
@@ -9,6 +10,7 @@ from app.middleware.auth import token_required
 from app.utils.validation import validate_registration_data, validate_login_data, validate_profile_update_data
 
 auth_bp = Blueprint('auth', __name__)
+logger = logging.getLogger(__name__)
 
 
 @auth_bp.route('/register', methods=['POST'])
@@ -62,7 +64,7 @@ def register():
         db.session.commit()
         
         # Generate JWT token
-        access_token = create_access_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
         
         return jsonify({
             'success': True,
@@ -117,7 +119,9 @@ def login():
             }), 401
         
         # Generate JWT token
-        access_token = create_access_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
+        logger.info(f"Login successful for user {user.id} ({user.username})")
+        logger.info(f"Generated token: {access_token[:50]}...")
         
         return jsonify({
             'success': True,

@@ -25,6 +25,12 @@ limiter = Limiter(
 def create_app(config_name='default'):
     """Application factory pattern"""
     import os
+    import logging
+    
+    # Set up logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    
     # Get the parent directory of the app package for templates and static files
     template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates'))
     static_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static'))
@@ -32,6 +38,10 @@ def create_app(config_name='default'):
     
     # Load configuration
     app.config.from_object(config[config_name])
+    
+    # Log JWT configuration for debugging
+    logger.info(f"JWT_SECRET_KEY configured: {bool(app.config.get('JWT_SECRET_KEY'))}")
+    logger.info(f"JWT_ACCESS_TOKEN_EXPIRES: {app.config.get('JWT_ACCESS_TOKEN_EXPIRES')}")
     
     # Validate production settings
     config[config_name].validate_production()

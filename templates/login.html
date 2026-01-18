@@ -88,8 +88,13 @@
             e.preventDefault();
             clearMessages();
 
-            const email = document.getElementById('loginEmail').value;
+            const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
+
+            if (!email || !password) {
+                showError('Please fill in all fields');
+                return;
+            }
 
             try {
                 const response = await fetch(`${API_BASE}/api/auth/login`, {
@@ -101,18 +106,22 @@
                 });
 
                 const data = await response.json();
+                console.log('Login response:', data);
 
-                if (data.success) {
+                if (response.ok && data.success) {
                     localStorage.setItem('token', data.data.token);
                     localStorage.setItem('user', JSON.stringify(data.data.user));
                     showSuccess('Login successful! Redirecting...');
+                    
+                    // Immediate redirect
                     setTimeout(() => {
                         window.location.href = '/chat';
-                    }, 1000);
+                    }, 500);
                 } else {
-                    showError(data.message);
+                    showError(data.message || 'Login failed');
                 }
             } catch (error) {
+                console.error('Login error:', error);
                 showError('Network error. Please try again.');
             }
         });
@@ -122,9 +131,19 @@
             e.preventDefault();
             clearMessages();
 
-            const username = document.getElementById('registerUsername').value;
-            const email = document.getElementById('registerEmail').value;
+            const username = document.getElementById('registerUsername').value.trim();
+            const email = document.getElementById('registerEmail').value.trim();
             const password = document.getElementById('registerPassword').value;
+
+            if (!username || !email || !password) {
+                showError('Please fill in all fields');
+                return;
+            }
+
+            if (password.length < 6) {
+                showError('Password must be at least 6 characters long');
+                return;
+            }
 
             try {
                 const response = await fetch(`${API_BASE}/api/auth/register`, {
@@ -136,30 +155,38 @@
                 });
 
                 const data = await response.json();
+                console.log('Register response:', data);
 
-                if (data.success) {
+                if (response.ok && data.success) {
                     localStorage.setItem('token', data.data.token);
                     localStorage.setItem('user', JSON.stringify(data.data.user));
                     showSuccess('Registration successful! Redirecting...');
+                    
+                    // Immediate redirect
                     setTimeout(() => {
                         window.location.href = '/chat';
-                    }, 1000);
+                    }, 500);
                 } else {
-                    if (data.errors) {
+                    if (data.errors && Array.isArray(data.errors)) {
                         showError(data.errors.join(', '));
                     } else {
-                        showError(data.message);
+                        showError(data.message || 'Registration failed');
                     }
                 }
             } catch (error) {
+                console.error('Register error:', error);
                 showError('Network error. Please try again.');
             }
         });
 
         // Check if user is already logged in
-        if (localStorage.getItem('token')) {
-            window.location.href = '/chat';
-        }
+        document.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                console.log('User already logged in, redirecting...');
+                window.location.href = '/chat';
+            }
+        });
     </script>
 </body>
 </html>

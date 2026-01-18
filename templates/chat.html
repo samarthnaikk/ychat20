@@ -56,7 +56,7 @@
     <!-- Status indicator -->
     <div id="connectionStatus" class="connection-status offline">Connecting...</div>
 
-    <script src="{{ url_for('static', filename='js/socket.io.min.js') }}"></script>
+    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
     <script>
         const API_BASE = '';
         let socket = null;
@@ -66,15 +66,22 @@
 
         // Check authentication
         if (!token) {
+            console.log('No token found, redirecting to login');
             window.location.href = '/';
         } else {
+            console.log('Token found:', token.substring(0, 20) + '...');
             // Parse user data
             try {
                 currentUser = JSON.parse(localStorage.getItem('user'));
-                document.getElementById('currentUsername').textContent = currentUser.username;
+                if (currentUser && currentUser.username) {
+                    document.getElementById('currentUsername').textContent = currentUser.username;
+                } else {
+                    console.log('Invalid user data, will verify with server');
+                    document.getElementById('currentUsername').textContent = 'Loading...';
+                }
             } catch (error) {
                 console.error('Error parsing user data:', error);
-                logout();
+                document.getElementById('currentUsername').textContent = 'Loading...';
             }
         }
 
@@ -391,24 +398,36 @@
 
         // Initialize the application
         async function initApp() {
-            console.log('Initializing app...');
+            if (!token) {
+                console.log('No token in initApp, redirecting');
+                window.location.href = '/';
+                return;
+            }
+
+            console.log('Initializing app with token...');
             
             // Verify authentication first
             try {
+                console.log('Making auth request to /api/auth/me');
                 const response = await fetch(`${API_BASE}/api/auth/me`, {
                     headers: {
-                        'Authorization': `Bearer ${token}`
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
                     }
                 });
 
+                console.log('Auth response status:', response.status);
+                
                 if (!response.ok) {
-                    console.error('Auth verification failed');
+                    console.error('Auth verification failed with status:', response.status);
+                    const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+                    console.error('Auth error:', errorData);
                     logout();
                     return;
                 }
 
                 const userData = await response.json();
-                console.log('Auth verified:', userData);
+                console.log('Auth verified successfully:', userData);
 
                 // Update current user data
                 currentUser = userData.data.user;
@@ -427,11 +446,14 @@
             } catch (error) {
                 console.error('App initialization error:', error);
                 showError('Failed to initialize app. Please refresh the page.');
+                // Don't logout on network errors, just show error
             }
         }
 
-        // Initialize the application
-        initApp();
+        // Only initialize if we have a token
+        if (token) {
+            initApp();
+        }
     </script>
 </body>
 </html>
