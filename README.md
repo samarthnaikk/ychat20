@@ -84,19 +84,24 @@ python app.py
 ```
 ychat20/
 ├── app/
-│   ├── __init__.py              # Flask app factory
+│   ├── __init__.py              # Flask app factory with SocketIO
 │   ├── config/
 │   │   └── settings.py          # Configuration classes
 │   ├── models/
-│   │   └── user.py              # User model with password hashing
+│   │   ├── user.py              # User model with password hashing
+│   │   └── message.py           # Message model for chat persistence
 │   ├── routes/
-│   │   └── auth_routes.py       # Authentication endpoints
+│   │   ├── auth_routes.py       # Authentication endpoints
+│   │   └── message_routes.py    # Message history endpoints
 │   ├── middleware/
 │   │   └── auth.py              # JWT authentication decorator
+│   ├── websocket/
+│   │   └── handlers.py          # WebSocket event handlers
 │   └── utils/
 │       └── validation.py        # Input validation utilities
 ├── app.py                       # Application entry point
 ├── requirements.txt             # Python dependencies
+├── test_messaging.py            # WebSocket and messaging tests
 ├── validate.py                  # Validation script
 ├── .env.example                 # Environment variables template
 ├── .gitignore
@@ -114,17 +119,28 @@ For detailed API documentation including all endpoints, request/response formats
 - `POST /api/auth/register` - Register a new user
 - `POST /api/auth/login` - Authenticate and get JWT token
 - `GET /api/auth/me` - Get current user profile (requires authentication)
+- `GET /api/messages/history/:userId` - Get chat history with another user (requires authentication)
+
+**WebSocket Events:**
+- `connect` - Establish WebSocket connection with JWT authentication
+- `send_message` - Send a real-time message to another user
+- `receive_message` - Receive real-time messages from other users
+- `message_sent` - Confirmation of message delivery
 
 **Security Features:**
 - bcrypt password hashing
 - JWT token authentication (7-day expiration)
+- WebSocket authentication with JWT
 - Rate limiting (5 req/15min for auth, 100 req/15min for general)
 - Input validation and sanitization
 - Protected routes with authentication decorator
+- Authorization checks for message access
 
 ## Testing
 
-Run the validation script to verify the implementation:
+### Run Validation Script
+
+Run the validation script to verify the authentication implementation:
 
 ```bash
 python validate.py
@@ -135,6 +151,26 @@ This will test:
 - JWT token generation and verification
 - Module loading and structure
 - Security feature implementation
+
+### Run Messaging Tests
+
+Run the comprehensive test suite for WebSocket and messaging functionality:
+
+```bash
+# Make sure the server is running first
+python app.py
+
+# In another terminal
+python test_messaging.py
+```
+
+This will test:
+- User registration and authentication
+- WebSocket connection with JWT authentication
+- Real-time message delivery between users
+- Message persistence in database
+- Chat history retrieval with pagination
+- Authorization checks for message access
 
 ## Contributing
 

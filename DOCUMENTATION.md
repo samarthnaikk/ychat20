@@ -440,6 +440,379 @@ console.log(userData);
 
 ---
 
+## WebSocket Real-Time Messaging
+
+YChat20 supports real-time one-to-one messaging using WebSocket connections via Socket.IO.
+
+### Connection
+
+**Endpoint:** WebSocket connection to the server base URL
+
+**Authentication:** JWT token must be provided during connection
+
+**Connection Example (JavaScript):**
+```javascript
+import io from 'socket.io-client';
+
+const token = 'your-jwt-token-here';
+
+const socket = io('http://localhost:3000', {
+  auth: {
+    token: token
+  }
+});
+```
+
+**Connection Example (Python):**
+```python
+import socketio
+
+sio = socketio.Client()
+token = 'your-jwt-token-here'
+
+sio.connect('http://localhost:3000', auth={'token': token})
+```
+
+---
+
+### WebSocket Events
+
+#### Client to Server Events
+
+##### 1. send_message
+
+Send a message to another user.
+
+**Event:** `send_message`
+
+**Payload:**
+```json
+{
+  "receiverId": 2,
+  "content": "Hello! How are you?"
+}
+```
+
+**Validation:**
+- `receiverId`: Required, must be a valid user ID
+- `content`: Required, string, 1-5000 characters
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "message": "Error description"
+}
+```
+
+---
+
+#### Server to Client Events
+
+##### 1. connected
+
+Emitted when a client successfully connects.
+
+**Event:** `connected`
+
+**Payload:**
+```json
+{
+  "success": true,
+  "message": "Connected to chat server",
+  "userId": 1
+}
+```
+
+##### 2. message_sent
+
+Confirmation that your message was sent and saved.
+
+**Event:** `message_sent`
+
+**Payload:**
+```json
+{
+  "success": true,
+  "message": {
+    "id": 123,
+    "senderId": 1,
+    "receiverId": 2,
+    "content": "Hello! How are you?",
+    "timestamp": "2024-01-01T12:00:00.000000"
+  }
+}
+```
+
+##### 3. receive_message
+
+Receive a message from another user (real-time delivery).
+
+**Event:** `receive_message`
+
+**Payload:**
+```json
+{
+  "success": true,
+  "message": {
+    "id": 123,
+    "senderId": 2,
+    "receiverId": 1,
+    "content": "I'm doing great, thanks!",
+    "timestamp": "2024-01-01T12:00:05.000000"
+  }
+}
+```
+
+##### 4. error
+
+Error notification for failed operations.
+
+**Event:** `error`
+
+**Payload:**
+```json
+{
+  "success": false,
+  "message": "Error description"
+}
+```
+
+---
+
+### WebSocket Example Implementation
+
+**Complete JavaScript Example:**
+```javascript
+import io from 'socket.io-client';
+
+// Get JWT token from login/register
+const token = localStorage.getItem('token');
+
+// Connect to server
+const socket = io('http://localhost:3000', {
+  auth: { token: token }
+});
+
+// Connection successful
+socket.on('connected', (data) => {
+  console.log('Connected:', data.message);
+  console.log('Your user ID:', data.userId);
+});
+
+// Send a message
+function sendMessage(receiverId, content) {
+  socket.emit('send_message', {
+    receiverId: receiverId,
+    content: content
+  });
+}
+
+// Message sent confirmation
+socket.on('message_sent', (data) => {
+  console.log('Message sent:', data.message);
+  // Update UI to show message was sent
+});
+
+// Receive incoming messages
+socket.on('receive_message', (data) => {
+  console.log('New message:', data.message);
+  // Display message in chat UI
+});
+
+// Handle errors
+socket.on('error', (data) => {
+  console.error('Error:', data.message);
+});
+
+// Example: Send a message
+sendMessage(2, 'Hello there!');
+```
+
+**Complete Python Example:**
+```python
+import socketio
+
+# Create client
+sio = socketio.Client()
+
+# Get JWT token
+token = 'your-jwt-token'
+
+# Event handlers
+@sio.on('connected')
+def on_connected(data):
+    print(f"Connected: {data['message']}")
+    print(f"User ID: {data['userId']}")
+
+@sio.on('message_sent')
+def on_message_sent(data):
+    print(f"Message sent: {data['message']}")
+
+@sio.on('receive_message')
+def on_receive_message(data):
+    print(f"New message: {data['message']}")
+
+@sio.on('error')
+def on_error(data):
+    print(f"Error: {data['message']}")
+
+# Connect with authentication
+sio.connect('http://localhost:3000', auth={'token': token})
+
+# Send a message
+sio.emit('send_message', {
+    'receiverId': 2,
+    'content': 'Hello there!'
+})
+
+# Keep connection alive
+sio.wait()
+```
+
+---
+
+## Message History Endpoints
+
+### 1. Get Chat History
+
+Retrieve message history between the current user and another user.
+
+**Endpoint:** `GET /api/messages/history/:userId`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**URL Parameters:**
+- `userId`: The ID of the other user in the conversation
+
+**Query Parameters:**
+- `page`: Page number (optional, default: 1, min: 1)
+- `per_page`: Results per page (optional, default: 50, max: 100, min: 1)
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "messages": [
+      {
+        "id": 1,
+        "senderId": 1,
+        "receiverId": 2,
+        "content": "Hello! How are you?",
+        "timestamp": "2024-01-01T12:00:00.000000"
+      },
+      {
+        "id": 2,
+        "senderId": 2,
+        "receiverId": 1,
+        "content": "I'm doing great, thanks!",
+        "timestamp": "2024-01-01T12:00:05.000000"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "perPage": 50,
+      "totalPages": 1,
+      "totalMessages": 2,
+      "hasNext": false,
+      "hasPrev": false
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+*400 Bad Request - Invalid pagination:*
+```json
+{
+  "success": false,
+  "message": "Invalid pagination parameters"
+}
+```
+
+*401 Unauthorized - No token or invalid token:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+*404 Not Found - User doesn't exist:*
+```json
+{
+  "success": false,
+  "message": "User not found"
+}
+```
+
+**Example Usage:**
+
+Using cURL:
+```bash
+curl -X GET http://localhost:3000/api/messages/history/2 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+With pagination:
+```bash
+curl -X GET "http://localhost:3000/api/messages/history/2?page=1&per_page=20" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+Using JavaScript Fetch:
+```javascript
+const userId = 2;
+const token = localStorage.getItem('token');
+
+const response = await fetch(`http://localhost:3000/api/messages/history/${userId}?page=1&per_page=50`, {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const data = await response.json();
+console.log(data.data.messages);
+```
+
+---
+
+## Real-Time Messaging Features
+
+### Message Delivery
+
+- **Online Users**: Messages are delivered instantly via WebSocket when both users are connected
+- **Offline Users**: Messages are saved to the database and can be retrieved via chat history API
+- **Message Persistence**: All messages are permanently stored regardless of delivery status
+- **Acknowledgments**: Senders receive confirmation when messages are sent
+
+### Security
+
+- **WebSocket Authentication**: JWT tokens required for WebSocket connections
+- **Authorization**: Users can only access conversations they are part of
+- **Content Validation**: Messages are validated for length and content type
+- **Rate Limiting**: API endpoints are rate-limited to prevent abuse
+
+### Limitations
+
+- **One-to-One Only**: Group chats are not supported
+- **No Message Editing**: Sent messages cannot be edited
+- **No Message Deletion**: Sent messages cannot be deleted
+- **No Read Receipts**: Read status is not tracked
+- **No Typing Indicators**: Typing status is not supported
+
+---
+
 ## Notes
 
 - All timestamps are in ISO 8601 format
@@ -448,3 +821,5 @@ console.log(userData);
 - The JWT secret key should be kept secure and never exposed
 - Rate limits are applied per IP address
 - Database uses SQLite for development; PostgreSQL is recommended for production
+- WebSocket connections automatically handle reconnection on disconnect
+- Messages are ordered by timestamp in ascending order (oldest first)
