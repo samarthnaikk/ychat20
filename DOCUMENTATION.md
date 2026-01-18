@@ -223,6 +223,98 @@ Authorization: ******
 
 ---
 
+### 4. Update User Profile
+
+Update the profile information of the currently authenticated user.
+
+**Endpoint:** `PUT /api/auth/profile`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "username": "newusername",
+  "email": "newemail@example.com"
+}
+```
+
+**Validation Requirements:**
+- **Username**: Optional, 3-30 characters, alphanumeric and underscores only
+- **Email**: Optional, valid email format (normalized to lowercase)
+- At least one field must be provided
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Profile updated successfully",
+  "data": {
+    "user": {
+      "id": 1,
+      "username": "newusername",
+      "email": "newemail@example.com",
+      "createdAt": "2024-01-01T00:00:00"
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+*400 Bad Request - Validation Error:*
+```json
+{
+  "success": false,
+  "message": "Validation failed",
+  "errors": [
+    "Username must be 3-30 characters"
+  ]
+}
+```
+
+*400 Bad Request - No Fields Provided:*
+```json
+{
+  "success": false,
+  "message": "At least one field must be provided"
+}
+```
+
+*400 Bad Request - Duplicate Email:*
+```json
+{
+  "success": false,
+  "message": "Email already in use"
+}
+```
+
+*400 Bad Request - Duplicate Username:*
+```json
+{
+  "success": false,
+  "message": "Username already taken"
+}
+```
+
+*401 Unauthorized - Missing/Invalid Token:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+---
+
 ## Root Endpoint
 
 ### Get API Information
@@ -241,7 +333,17 @@ Get basic information about the API.
   "endpoints": {
     "register": "POST /api/auth/register",
     "login": "POST /api/auth/login",
-    "me": "GET /api/auth/me (Protected)"
+    "me": "GET /api/auth/me (Protected)",
+    "updateProfile": "PUT /api/auth/profile (Protected)",
+    "createRoom": "POST /api/rooms (Protected)",
+    "getRooms": "GET /api/rooms (Protected)",
+    "getRoomDetails": "GET /api/rooms/:roomId (Protected)",
+    "addMember": "POST /api/rooms/:roomId/members (Protected)",
+    "removeMember": "DELETE /api/rooms/:roomId/members/:userId (Protected)",
+    "getRoomMessages": "GET /api/rooms/:roomId/messages (Protected)",
+    "editMessage": "PUT /api/messages/:messageId (Protected)",
+    "deleteMessage": "DELETE /api/messages/:messageId (Protected)",
+    "messageHistory": "GET /api/messages/history/:userId (Protected)"
   }
 }
 ```
@@ -481,7 +583,7 @@ sio.connect('http://localhost:3000', auth={'token': token})
 
 ##### 1. send_message
 
-Send a message to another user.
+Send a direct message to another user.
 
 **Event:** `send_message`
 
@@ -496,6 +598,91 @@ Send a message to another user.
 **Validation:**
 - `receiverId`: Required, must be a valid user ID
 - `content`: Required, string, 1-5000 characters
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "message": "Error description"
+}
+```
+
+---
+
+##### 2. send_room_message
+
+Send a message to a room (group chat).
+
+**Event:** `send_room_message`
+
+**Payload:**
+```json
+{
+  "roomId": 1,
+  "content": "Hello everyone!"
+}
+```
+
+**Validation:**
+- `roomId`: Required, must be a valid room ID
+- `content`: Required, string, 1-5000 characters
+- User must be a member of the room
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "message": "Error description"
+}
+```
+
+---
+
+##### 3. edit_message
+
+Edit a previously sent message (direct or room message).
+
+**Event:** `edit_message`
+
+**Payload:**
+```json
+{
+  "messageId": 123,
+  "content": "Updated message content"
+}
+```
+
+**Validation:**
+- `messageId`: Required, must be a valid message ID
+- `content`: Required, string, 1-5000 characters
+- User must be the sender of the message
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "message": "Error description"
+}
+```
+
+---
+
+##### 4. delete_message
+
+Delete a previously sent message (direct or room message).
+
+**Event:** `delete_message`
+
+**Payload:**
+```json
+{
+  "messageId": 123
+}
+```
+
+**Validation:**
+- `messageId`: Required, must be a valid message ID
+- User must be the sender of the message
 
 **Error Response:**
 ```json
@@ -564,7 +751,80 @@ Receive a message from another user (real-time delivery).
 }
 ```
 
-##### 4. error
+##### 4. receive_room_message
+
+Receive a message from a room (group chat) in real-time.
+
+**Event:** `receive_room_message`
+
+**Payload:**
+```json
+{
+  "success": true,
+  "message": {
+    "id": 456,
+    "roomId": 1,
+    "senderId": 3,
+    "content": "Hey team!",
+    "timestamp": "2024-01-01T12:10:00.000000",
+    "edited": false,
+    "editedAt": null
+  }
+}
+```
+
+---
+
+##### 5. message_edited
+
+Notification that a message has been edited (direct or room message).
+
+**Event:** `message_edited`
+
+**Payload:**
+```json
+{
+  "success": true,
+  "message": {
+    "id": 123,
+    "senderId": 1,
+    "receiverId": 2,
+    "roomId": null,
+    "content": "Updated message content",
+    "timestamp": "2024-01-01T12:00:00.000000",
+    "edited": true,
+    "editedAt": "2024-01-01T12:05:00.000000"
+  }
+}
+```
+
+**Note:** This event is sent to:
+- The receiver for direct messages
+- All room members for room messages
+
+---
+
+##### 6. message_deleted
+
+Notification that a message has been deleted (direct or room message).
+
+**Event:** `message_deleted`
+
+**Payload:**
+```json
+{
+  "success": true,
+  "messageId": 123
+}
+```
+
+**Note:** This event is sent to:
+- The receiver for direct messages
+- All room members for room messages
+
+---
+
+##### 7. error
 
 Error notification for failed operations.
 
@@ -614,10 +874,28 @@ socket.on('message_sent', (data) => {
   // Update UI to show message was sent
 });
 
-// Receive incoming messages
+// Receive incoming direct messages
 socket.on('receive_message', (data) => {
   console.log('New message:', data.message);
   // Display message in chat UI
+});
+
+// Receive incoming room messages
+socket.on('receive_room_message', (data) => {
+  console.log('New room message:', data.message);
+  // Display message in room chat UI
+});
+
+// Handle message edits
+socket.on('message_edited', (data) => {
+  console.log('Message edited:', data.message);
+  // Update message in UI
+});
+
+// Handle message deletions
+socket.on('message_deleted', (data) => {
+  console.log('Message deleted:', data.messageId);
+  // Remove message from UI
 });
 
 // Handle errors
@@ -625,8 +903,34 @@ socket.on('error', (data) => {
   console.error('Error:', data.message);
 });
 
-// Example: Send a message
+// Example: Send a direct message
 sendMessage(2, 'Hello there!');
+
+// Example: Send a room message
+function sendRoomMessage(roomId, content) {
+  socket.emit('send_room_message', {
+    roomId: roomId,
+    content: content
+  });
+}
+sendRoomMessage(1, 'Hello everyone!');
+
+// Example: Edit a message
+function editMessage(messageId, newContent) {
+  socket.emit('edit_message', {
+    messageId: messageId,
+    content: newContent
+  });
+}
+editMessage(123, 'Updated content');
+
+// Example: Delete a message
+function deleteMessage(messageId) {
+  socket.emit('delete_message', {
+    messageId: messageId
+  });
+}
+deleteMessage(123);
 ```
 
 **Complete Python Example:**
@@ -651,7 +955,19 @@ def on_message_sent(data):
 
 @sio.on('receive_message')
 def on_receive_message(data):
-    print(f"New message: {data['message']}")
+    print(f"New direct message: {data['message']}")
+
+@sio.on('receive_room_message')
+def on_receive_room_message(data):
+    print(f"New room message: {data['message']}")
+
+@sio.on('message_edited')
+def on_message_edited(data):
+    print(f"Message edited: {data['message']}")
+
+@sio.on('message_deleted')
+def on_message_deleted(data):
+    print(f"Message deleted: {data['messageId']}")
 
 @sio.on('error')
 def on_error(data):
@@ -660,14 +976,619 @@ def on_error(data):
 # Connect with authentication
 sio.connect('http://localhost:3000', auth={'token': token})
 
-# Send a message
+# Send a direct message
 sio.emit('send_message', {
     'receiverId': 2,
     'content': 'Hello there!'
 })
 
+# Send a room message
+sio.emit('send_room_message', {
+    'roomId': 1,
+    'content': 'Hello everyone!'
+})
+
+# Edit a message
+sio.emit('edit_message', {
+    'messageId': 123,
+    'content': 'Updated content'
+})
+
+# Delete a message
+sio.emit('delete_message', {
+    'messageId': 123
+})
+
 # Keep connection alive
 sio.wait()
+```
+
+---
+
+## Room (Group Chat) Endpoints
+
+All room endpoints are under `/api/rooms` and require authentication.
+
+### 1. Create Room
+
+Create a new group chat room.
+
+**Endpoint:** `POST /api/rooms`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "name": "Team Discussion",
+  "description": "General team chat"
+}
+```
+
+**Validation Requirements:**
+- **name**: Required, 1-100 characters
+- **description**: Optional, max 500 characters
+
+**Success Response (201 Created):**
+```json
+{
+  "success": true,
+  "message": "Room created successfully",
+  "data": {
+    "room": {
+      "id": 1,
+      "name": "Team Discussion",
+      "description": "General team chat",
+      "createdBy": 1,
+      "createdAt": "2024-01-01T12:00:00"
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+*400 Bad Request - Validation Error:*
+```json
+{
+  "success": false,
+  "message": "Room name is required"
+}
+```
+
+*401 Unauthorized:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+---
+
+### 2. Get User's Rooms
+
+Retrieve all rooms that the current user is a member of.
+
+**Endpoint:** `GET /api/rooms`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "rooms": [
+      {
+        "id": 1,
+        "name": "Team Discussion",
+        "description": "General team chat",
+        "createdBy": 1,
+        "createdAt": "2024-01-01T12:00:00"
+      },
+      {
+        "id": 2,
+        "name": "Project Alpha",
+        "description": "Project-specific discussions",
+        "createdBy": 3,
+        "createdAt": "2024-01-02T10:30:00"
+      }
+    ]
+  }
+}
+```
+
+**Error Responses:**
+
+*401 Unauthorized:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+---
+
+### 3. Get Room Details
+
+Get detailed information about a specific room, including members.
+
+**Endpoint:** `GET /api/rooms/:roomId`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**URL Parameters:**
+- `roomId`: The ID of the room
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "room": {
+      "id": 1,
+      "name": "Team Discussion",
+      "description": "General team chat",
+      "createdBy": 1,
+      "createdAt": "2024-01-01T12:00:00",
+      "members": [
+        {
+          "id": 1,
+          "username": "johndoe",
+          "email": "john@example.com"
+        },
+        {
+          "id": 2,
+          "username": "janedoe",
+          "email": "jane@example.com"
+        }
+      ]
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+*401 Unauthorized:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+*403 Forbidden - Not a member:*
+```json
+{
+  "success": false,
+  "message": "You are not a member of this room"
+}
+```
+
+*404 Not Found:*
+```json
+{
+  "success": false,
+  "message": "Room not found"
+}
+```
+
+---
+
+### 4. Add Member to Room
+
+Add a new member to a room. Only room creators can add members.
+
+**Endpoint:** `POST /api/rooms/:roomId/members`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**URL Parameters:**
+- `roomId`: The ID of the room
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "userId": 3
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Member added successfully"
+}
+```
+
+**Error Responses:**
+
+*400 Bad Request - User ID missing:*
+```json
+{
+  "success": false,
+  "message": "User ID is required"
+}
+```
+
+*400 Bad Request - Already a member:*
+```json
+{
+  "success": false,
+  "message": "User is already a member of this room"
+}
+```
+
+*401 Unauthorized:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+*403 Forbidden - Not room creator:*
+```json
+{
+  "success": false,
+  "message": "Only room creator can add members"
+}
+```
+
+*404 Not Found - Room not found:*
+```json
+{
+  "success": false,
+  "message": "Room not found"
+}
+```
+
+*404 Not Found - User not found:*
+```json
+{
+  "success": false,
+  "message": "User not found"
+}
+```
+
+---
+
+### 5. Remove Member from Room
+
+Remove a member from a room. Only room creators can remove members.
+
+**Endpoint:** `DELETE /api/rooms/:roomId/members/:userId`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**URL Parameters:**
+- `roomId`: The ID of the room
+- `userId`: The ID of the user to remove
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Member removed successfully"
+}
+```
+
+**Error Responses:**
+
+*400 Bad Request - Cannot remove creator:*
+```json
+{
+  "success": false,
+  "message": "Cannot remove room creator"
+}
+```
+
+*401 Unauthorized:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+*403 Forbidden - Not room creator:*
+```json
+{
+  "success": false,
+  "message": "Only room creator can remove members"
+}
+```
+
+*404 Not Found - Room not found:*
+```json
+{
+  "success": false,
+  "message": "Room not found"
+}
+```
+
+*404 Not Found - User not a member:*
+```json
+{
+  "success": false,
+  "message": "User is not a member of this room"
+}
+```
+
+---
+
+### 6. Get Room Messages
+
+Retrieve message history for a specific room with pagination.
+
+**Endpoint:** `GET /api/rooms/:roomId/messages`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**URL Parameters:**
+- `roomId`: The ID of the room
+
+**Query Parameters:**
+- `page`: Page number (optional, default: 1, min: 1)
+- `per_page`: Results per page (optional, default: 50, max: 100, min: 1)
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "messages": [
+      {
+        "id": 1,
+        "roomId": 1,
+        "senderId": 1,
+        "content": "Hello everyone!",
+        "timestamp": "2024-01-01T12:00:00.000000",
+        "edited": false,
+        "editedAt": null
+      },
+      {
+        "id": 2,
+        "roomId": 1,
+        "senderId": 2,
+        "content": "Hi there!",
+        "timestamp": "2024-01-01T12:00:05.000000",
+        "edited": false,
+        "editedAt": null
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "perPage": 50,
+      "totalPages": 1,
+      "totalMessages": 2,
+      "hasNext": false,
+      "hasPrev": false
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+*400 Bad Request - Invalid pagination:*
+```json
+{
+  "success": false,
+  "message": "Invalid pagination parameters"
+}
+```
+
+*401 Unauthorized:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+*403 Forbidden - Not a member:*
+```json
+{
+  "success": false,
+  "message": "You are not a member of this room"
+}
+```
+
+*404 Not Found:*
+```json
+{
+  "success": false,
+  "message": "Room not found"
+}
+```
+
+---
+
+## Message Management Endpoints
+
+### 1. Edit Message
+
+Edit a previously sent message (both direct and room messages).
+
+**Endpoint:** `PUT /api/messages/:messageId`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**URL Parameters:**
+- `messageId`: The ID of the message to edit
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "content": "Updated message content"
+}
+```
+
+**Validation Requirements:**
+- **content**: Required, string, 1-5000 characters
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Message updated successfully",
+  "data": {
+    "message": {
+      "id": 1,
+      "senderId": 1,
+      "receiverId": 2,
+      "roomId": null,
+      "content": "Updated message content",
+      "timestamp": "2024-01-01T12:00:00.000000",
+      "edited": true,
+      "editedAt": "2024-01-01T12:05:00.000000"
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+*400 Bad Request - Missing content:*
+```json
+{
+  "success": false,
+  "message": "Content is required"
+}
+```
+
+*401 Unauthorized:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+*403 Forbidden - Not message sender:*
+```json
+{
+  "success": false,
+  "message": "You can only edit your own messages"
+}
+```
+
+*404 Not Found:*
+```json
+{
+  "success": false,
+  "message": "Message not found"
+}
+```
+
+---
+
+### 2. Delete Message
+
+Delete a previously sent message (both direct and room messages).
+
+**Endpoint:** `DELETE /api/messages/:messageId`
+
+**Rate Limit:** 100 requests per 15 minutes per IP
+
+**Authentication:** Required (JWT token in Authorization header)
+
+**URL Parameters:**
+- `messageId`: The ID of the message to delete
+
+**Request Headers:**
+```
+Authorization: Bearer YOUR_JWT_TOKEN
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Message deleted successfully"
+}
+```
+
+**Error Responses:**
+
+*401 Unauthorized:*
+```json
+{
+  "success": false,
+  "message": "Not authorized to access this route"
+}
+```
+
+*403 Forbidden - Not message sender:*
+```json
+{
+  "success": false,
+  "message": "You can only delete your own messages"
+}
+```
+
+*404 Not Found:*
+```json
+{
+  "success": false,
+  "message": "Message not found"
+}
 ```
 
 ---
@@ -805,11 +1726,9 @@ console.log(data.data.messages);
 
 ### Limitations
 
-- **One-to-One Only**: Group chats are not supported
-- **No Message Editing**: Sent messages cannot be edited
-- **No Message Deletion**: Sent messages cannot be deleted
 - **No Read Receipts**: Read status is not tracked
 - **No Typing Indicators**: Typing status is not supported
+- **No File Attachments**: Only text messages are supported
 
 ---
 

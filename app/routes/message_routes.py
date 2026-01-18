@@ -2,10 +2,12 @@
 Message routes for chat history
 """
 import logging
+from datetime import datetime
 from flask import Blueprint, request, jsonify
 from app import db, limiter
 from app.models.message import Message
 from app.models.user import User
+from app.models.room import RoomMember
 from app.middleware.auth import token_required
 
 message_bp = Blueprint('messages', __name__)
@@ -80,3 +82,131 @@ def get_chat_history(current_user, user_id):
             'success': False,
             'message': 'Server error while fetching messages'
         }), 500
+
+
+@message_bp.route('/<int:message_id>', methods=['PUT'])
+@limiter.limit("100 per 15 minutes")
+@token_required
+def edit_message(current_user, message_id):
+    """
+    Edit a message
+    PUT /api/messages/:messageId
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'Request body is required'
+            }), 400
+        
+        content = data.get('content', '').strip()
+        
+        if not content:
+            return jsonify({
+                'success': False,
+                'message': 'Content is required'
+            }), 400
+        
+        if len(content) > 5000:
+            return jsonify({
+                'success': False,
+                'message': 'Content too long (max 5000 characters)'
+            }), 400
+        
+        # Find message
+        message = Message.query.get(message_id)
+        if not message:
+            return jsonify({
+                'success': False,
+                'message': 'Message not found'
+            }), 404
+        
+        # Check if user is the sender
+        if message.sender_id != current_user.id:
+            return jsonify({
+                'success': False,
+                'message': 'Not authorized to edit this message'
+            }), 403
+        
+        # Check if message is deleted
+        if message.deleted_at:
+            return jsonify({
+                'success': False,
+                'message': 'Cannot edit a deleted message'
+            }), 400
+        
+        # Update message
+        message.content = content
+        message.edited_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Message edited successfully',
+            'data': {
+                'message': message.to_dict()
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error editing message: {type(e).__name__}")
+        return jsonify({
+            'success': False,
+            'message': 'Server error while editing message'
+        }), 500
+
+
+@message_bp.route('/<int:message_id>', methods=['DELETE'])
+@limiter.limit("100 per 15 minutes")
+@token_required
+def delete_message(current_user, message_id):
+    """
+    Delete a message (soft delete - mark as deleted)
+    DELETE /api/messages/:messageId
+    """
+    try:
+        # Find message
+        message = Message.query.get(message_id)
+        if not message:
+            return jsonify({
+                'success': False,
+                'message': 'Message not found'
+            }), 404
+        
+        # Check if user is the sender
+        if message.sender_id != current_user.id:
+            return jsonify({
+                'success': False,
+                'message': 'Not authorized to delete this message'
+            }), 403
+        
+        # Check if message is already deleted
+        if message.deleted_at:
+            return jsonify({
+                'success': False,
+                'message': 'Message is already deleted'
+            }), 400
+        
+        # Soft delete - mark as deleted
+        message.deleted_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Message deleted successfully',
+            'data': {
+                'message': message.to_dict()
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting message: {type(e).__name__}")
+        return jsonify({
+            'success': False,
+            'message': 'Server error while deleting message'
+        }), 500
+
