@@ -70,3 +70,4 @@ htmlcov/
 *.pem
 *.key
 *.cert
+node_modules/
