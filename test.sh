@@ -230,6 +230,83 @@ test_invalid_user_chat_history() {
     fi
 }
 
+# Test 9: Update Profile - Success
+test_update_profile_success() {
+    print_test "Update Profile - Valid Data"
+    
+    # Create a user
+    local user=$(random_string)
+    local resp=$(curl -s -X POST "$BASE_URL/api/auth/register" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$user\",\"email\":\"${user}@example.com\",\"password\":\"TestPass123\"}")
+    
+    local token=$(echo "$resp" | jq -r '.data.token')
+    local new_username="${user}_updated"
+    
+    # Update profile
+    local response=$(curl -s -X PUT "$BASE_URL/api/auth/profile" \
+        -H "Authorization: Bearer $token" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$new_username\"}")
+    
+    if echo "$response" | jq -e '.success == true' > /dev/null 2>&1; then
+        local updated_username=$(echo "$response" | jq -r '.data.user.username')
+        if [ "$updated_username" = "$new_username" ]; then
+            print_pass "Profile update successful"
+        else
+            print_fail "Profile update didn't change username correctly"
+        fi
+    else
+        print_fail "Profile update failed: $response"
+    fi
+}
+
+# Test 10: Update Profile - Unauthorized (no token)
+test_update_profile_unauthorized() {
+    print_test "Update Profile - Unauthorized"
+    
+    local response=$(curl -s -X PUT "$BASE_URL/api/auth/profile" \
+        -H "Content-Type: application/json" \
+        -d '{"username":"hacker"}')
+    
+    if echo "$response" | jq -e '.success == false' > /dev/null 2>&1; then
+        print_pass "Unauthorized profile update correctly rejected"
+    else
+        print_fail "Unauthorized profile update should be rejected"
+    fi
+}
+
+# Test 11: Update Profile - Duplicate Username
+test_update_profile_duplicate_username() {
+    print_test "Update Profile - Duplicate Username"
+    
+    # Create two users
+    local user1=$(random_string)
+    local user2=$(random_string)
+    
+    curl -s -X POST "$BASE_URL/api/auth/register" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$user1\",\"email\":\"${user1}@example.com\",\"password\":\"TestPass123\"}" > /dev/null
+    
+    local resp2=$(curl -s -X POST "$BASE_URL/api/auth/register" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$user2\",\"email\":\"${user2}@example.com\",\"password\":\"TestPass123\"}")
+    
+    local token2=$(echo "$resp2" | jq -r '.data.token')
+    
+    # Try to update user2's username to user1's username
+    local response=$(curl -s -X PUT "$BASE_URL/api/auth/profile" \
+        -H "Authorization: Bearer $token2" \
+        -H "Content-Type: application/json" \
+        -d "{\"username\":\"$user1\"}")
+    
+    if echo "$response" | jq -e '.success == false' > /dev/null 2>&1; then
+        print_pass "Duplicate username correctly rejected"
+    else
+        print_fail "Duplicate username should be rejected"
+    fi
+}
+
 # Print summary
 print_summary() {
     echo ""
@@ -274,6 +351,9 @@ main() {
     test_chat_history
     test_pagination
     test_invalid_user_chat_history
+    test_update_profile_success
+    test_update_profile_unauthorized
+    test_update_profile_duplicate_username
     
     # Print summary
     print_summary

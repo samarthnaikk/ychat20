@@ -94,3 +94,27 @@ def validate_login_data(data):
         errors.append('Password is required')
     
     return errors, email, password
+
+
+def validate_profile_update_data(data):
+    """Validate profile update request data"""
+    errors = []
+    
+    username = data.get('username', '').strip() if 'username' in data else None
+    email = data.get('email', '').strip().lower() if 'email' in data else None
+    
+    # Validate username if provided
+    if username is not None:
+        if username == '':
+            errors.append('Username cannot be empty')
+        else:
+            errors.extend(validate_username(username))
+    
+    # Validate email if provided
+    if email is not None:
+        if email == '':
+            errors.append('Email cannot be empty')
+        else:
+            errors.extend(validate_email_format(email))
+    
+    return errors, username, email
