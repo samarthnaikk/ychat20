@@ -8,18 +8,17 @@ YChat20 is a chat application designed to provide real-time messaging capabiliti
 
 ## Tech Stack
 
-- **Backend**: Node.js with Express.js
-- **Database**: MongoDB with Mongoose
+- **Backend**: Python with Flask
+- **Database**: SQLite (development) / PostgreSQL (production recommended)
 - **Authentication**: JWT (JSON Web Tokens) with bcrypt password hashing
 - **Real-time Communication**: WebSocket (to be implemented)
-- **Frontend**: To be determined
+- **Frontend**: HTML/CSS (to be implemented)
 
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
-- Node.js (v14 or higher)
-- npm or yarn
-- MongoDB (running locally or a MongoDB Atlas connection string)
+- Python 3.8 or higher
+- pip (Python package manager)
 - Git
 
 ## Setup Instructions
@@ -30,12 +29,23 @@ Before you begin, ensure you have the following installed:
    cd ychat20
    ```
 
-2. **Install dependencies**
+2. **Create a virtual environment**
    ```bash
-   npm install
+   python -m venv venv
+   
+   # On Windows
+   venv\Scripts\activate
+   
+   # On macOS/Linux
+   source venv/bin/activate
    ```
 
-3. **Configure environment variables**
+3. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment variables**
    
    Create a `.env` file in the root directory based on `.env.example`:
    ```bash
@@ -44,52 +54,52 @@ Before you begin, ensure you have the following installed:
    
    Update the `.env` file with your configuration:
    ```
+   FLASK_APP=app.py
+   FLASK_ENV=development
    PORT=3000
-   MONGODB_URI=mongodb://localhost:27017/ychat20
-   JWT_SECRET=your-secure-jwt-secret-key
-   JWT_EXPIRES_IN=7d
-   NODE_ENV=development
+   DATABASE_URL=sqlite:///ychat20.db
+   JWT_SECRET_KEY=your-secure-jwt-secret-key
+   JWT_ACCESS_TOKEN_EXPIRES=604800
+   CORS_ORIGINS=*
    ```
-
-4. **Start MongoDB**
-   
-   Make sure MongoDB is running locally or update `MONGODB_URI` with your MongoDB Atlas connection string.
 
 5. **Run the application**
    ```bash
-   npm start
+   python app.py
    ```
+   
+   The server will start on http://localhost:3000
 
 ## Development
 
-To run the application in development mode with hot-reload:
+To run the application in development mode:
 
 ```bash
-npm run dev
+export FLASK_ENV=development  # On Windows: set FLASK_ENV=development
+python app.py
 ```
 
 ## Project Structure
 
 ```
 ychat20/
-├── src/
+├── app/
+│   ├── __init__.py              # Flask app factory
 │   ├── config/
-│   │   └── database.js       # MongoDB connection configuration
-│   ├── controllers/
-│   │   └── authController.js # Authentication logic
-│   ├── middleware/
-│   │   ├── auth.js           # JWT authentication middleware
-│   │   └── validation.js     # Input validation middleware
+│   │   └── settings.py          # Configuration classes
 │   ├── models/
-│   │   └── User.js           # User model with password hashing
+│   │   └── user.py              # User model with password hashing
 │   ├── routes/
-│   │   └── authRoutes.js     # Authentication routes
-│   ├── utils/
-│   │   └── jwt.js            # JWT utility functions
-│   └── server.js             # Main application entry point
-├── .env.example              # Environment variables template
+│   │   └── auth_routes.py       # Authentication endpoints
+│   ├── middleware/
+│   │   └── auth.py              # JWT authentication decorator
+│   └── utils/
+│       └── validation.py        # Input validation utilities
+├── app.py                       # Application entry point
+├── requirements.txt             # Python dependencies
+├── validate.py                  # Validation script
+├── .env.example                 # Environment variables template
 ├── .gitignore
-├── package.json
 ├── README.md
 └── LICENSE
 ```
@@ -124,19 +134,15 @@ Register a new user with secure password hashing.
   "message": "User registered successfully",
   "data": {
     "user": {
-      "id": "user_id",
+      "id": 1,
       "username": "johndoe",
       "email": "john@example.com",
-      "createdAt": "2024-01-01T00:00:00.000Z"
+      "createdAt": "2024-01-01T00:00:00"
     },
-    "token": "jwt_token_here"
+    "token": "******"
   }
 }
 ```
-
-**Error Responses:**
-- 400: Validation errors or duplicate email/username
-- 500: Server error
 
 ---
 
@@ -160,20 +166,15 @@ Authenticate a user and receive a JWT token.
   "message": "Login successful",
   "data": {
     "user": {
-      "id": "user_id",
+      "id": 1,
       "username": "johndoe",
       "email": "john@example.com",
-      "createdAt": "2024-01-01T00:00:00.000Z"
+      "createdAt": "2024-01-01T00:00:00"
     },
-    "token": "jwt_token_here"
+    "token": "******"
   }
 }
 ```
-
-**Error Responses:**
-- 400: Missing email or password
-- 401: Invalid credentials
-- 500: Server error
 
 ---
 
@@ -184,7 +185,7 @@ Get the profile of the currently authenticated user.
 
 **Headers:**
 ```
-Authorization: Bearer <jwt_token>
+Authorization: ******
 ```
 
 **Success Response (200):**
@@ -193,27 +194,24 @@ Authorization: Bearer <jwt_token>
   "success": true,
   "data": {
     "user": {
-      "id": "user_id",
+      "id": 1,
       "username": "johndoe",
       "email": "john@example.com",
-      "createdAt": "2024-01-01T00:00:00.000Z"
+      "createdAt": "2024-01-01T00:00:00"
     }
   }
 }
 ```
 
-**Error Responses:**
-- 401: Not authorized or invalid token
-- 500: Server error
-
 ---
 
 ### Security Features
 
-- **Password Hashing**: All passwords are hashed using bcrypt with salt (10 rounds)
+- **Password Hashing**: All passwords are hashed using bcrypt
 - **JWT Authentication**: Tokens expire after 7 days (configurable)
-- **Protected Routes**: Authentication middleware validates JWT tokens
+- **Protected Routes**: Authentication decorator validates JWT tokens
 - **Input Validation**: All inputs are validated and sanitized
+- **Rate Limiting**: 5 req/15min for auth, 100 req/15min for general endpoints
 - **Secure Error Messages**: Error responses don't leak sensitive information
 
 ### Using the API
@@ -237,8 +235,22 @@ curl -X POST http://localhost:3000/api/auth/login \
 **Get Profile (with token):**
 ```bash
 curl -X GET http://localhost:3000/api/auth/me \
-  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+  -H "Authorization: ******"
 ```
+
+## Testing
+
+Run the validation script to verify the implementation:
+
+```bash
+python validate.py
+```
+
+This will test:
+- Password hashing functionality
+- JWT token generation and verification
+- Module loading and structure
+- Security feature implementation
 
 ## Contributing
 
