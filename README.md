@@ -106,137 +106,21 @@ ychat20/
 
 ## API Documentation
 
-### Authentication Endpoints
+For detailed API documentation including all endpoints, request/response formats, examples, and security features, see [DOCUMENTATION.md](DOCUMENTATION.md).
 
-#### Register a New User
-**POST** `/api/auth/register`
+### Quick Reference
 
-Register a new user with secure password hashing.
+**Available Endpoints:**
+- `POST /api/auth/register` - Register a new user
+- `POST /api/auth/login` - Authenticate and get JWT token
+- `GET /api/auth/me` - Get current user profile (requires authentication)
 
-**Request Body:**
-```json
-{
-  "username": "johndoe",
-  "email": "john@example.com",
-  "password": "SecurePass123"
-}
-```
-
-**Validation Requirements:**
-- Username: 3-30 characters, alphanumeric and underscores only
-- Email: Valid email format
-- Password: At least 6 characters, must contain uppercase, lowercase, and number
-
-**Success Response (201):**
-```json
-{
-  "success": true,
-  "message": "User registered successfully",
-  "data": {
-    "user": {
-      "id": 1,
-      "username": "johndoe",
-      "email": "john@example.com",
-      "createdAt": "2024-01-01T00:00:00"
-    },
-    "token": "******"
-  }
-}
-```
-
----
-
-#### Login
-**POST** `/api/auth/login`
-
-Authenticate a user and receive a JWT token.
-
-**Request Body:**
-```json
-{
-  "email": "john@example.com",
-  "password": "SecurePass123"
-}
-```
-
-**Success Response (200):**
-```json
-{
-  "success": true,
-  "message": "Login successful",
-  "data": {
-    "user": {
-      "id": 1,
-      "username": "johndoe",
-      "email": "john@example.com",
-      "createdAt": "2024-01-01T00:00:00"
-    },
-    "token": "******"
-  }
-}
-```
-
----
-
-#### Get Current User
-**GET** `/api/auth/me`
-
-Get the profile of the currently authenticated user.
-
-**Headers:**
-```
-Authorization: ******
-```
-
-**Success Response (200):**
-```json
-{
-  "success": true,
-  "data": {
-    "user": {
-      "id": 1,
-      "username": "johndoe",
-      "email": "john@example.com",
-      "createdAt": "2024-01-01T00:00:00"
-    }
-  }
-}
-```
-
----
-
-### Security Features
-
-- **Password Hashing**: All passwords are hashed using bcrypt
-- **JWT Authentication**: Tokens expire after 7 days (configurable)
-- **Protected Routes**: Authentication decorator validates JWT tokens
-- **Input Validation**: All inputs are validated and sanitized
-- **Rate Limiting**: 5 req/15min for auth, 100 req/15min for general endpoints
-- **Secure Error Messages**: Error responses don't leak sensitive information
-
-### Using the API
-
-Example using cURL:
-
-**Register:**
-```bash
-curl -X POST http://localhost:3000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username":"johndoe","email":"john@example.com","password":"SecurePass123"}'
-```
-
-**Login:**
-```bash
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"john@example.com","password":"SecurePass123"}'
-```
-
-**Get Profile (with token):**
-```bash
-curl -X GET http://localhost:3000/api/auth/me \
-  -H "Authorization: ******"
-```
+**Security Features:**
+- bcrypt password hashing
+- JWT token authentication (7-day expiration)
+- Rate limiting (5 req/15min for auth, 100 req/15min for general)
+- Input validation and sanitization
+- Protected routes with authentication decorator
 
 ## Testing
 
